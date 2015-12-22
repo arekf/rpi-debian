@@ -5,8 +5,8 @@ apt-get update
 apt-get install -y git binfmt-support qemu qemu-user-static debootstrap kpartx lvm2 dosfstools
 
 dd if=/dev/zero of=rpi.img bs=1M count=768
-losetup -f --show rpi.img
-cat /vagrant/templates/fdisk | fdisk /dev/loop0
+LOOP_DEVICE=`losetup -f --show rpi.img`
+cat /vagrant/templates/fdisk | fdisk $LOOP_DEVICE
 
 losetup -d /dev/loop0
 kpartx -va rpi.img
@@ -32,27 +32,24 @@ SKIP_BACKUP=1 UPDATE_SELF=0 BOOT_PATH=boot ROOT_PATH=root rpi-update
 echo "dwc_otg.lpm_enable=0 console=ttyAMA0,115200 kgdboc=ttyAMA0,115200 console=tty1 root=/dev/mmcblk0p2 rootfstype=ext4 rw rootwait" > boot/cmdline.txt
 
 cp /vagrant/templates/boot/config.txt boot/
-cp /vagrant/templates/root/etc/network/interfaces/lo root/etc/network/interfaces/lo
+cp /vagrant/templates/root/etc/network/interfaces/lo root/etc/network/interfaces
 
 mount -t proc proc root/proc
 mount --rbind /dev root/dev
 
-chroot root /bin/bash
+cp /vagrant/templates/root/etc/apt/apt.conf.d/00norecommends root/etc/apt/apt.conf.d
 
-echo 'APT::Install-Recommends "0";' > /etc/apt/apt.conf.d/00norecommends
+chroot root /bin/bash -c "apt-get update"
+chroot root /bin/bash -c "LANG=C apt-get install locale"
 
-apt-get update
+cp /vagrant/templates/root/etc/locale.gen root/etc/
 
-LANG=C apt-get install locales
-echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
-locale-gen
+chroot root /bin/bash -c "locale-gen"
 
-apt-get -y install openssh-server openssh-blacklist openssh-blacklist-extra sudo python aptitude resolvconf
+chroot root /bin/bash -c "apt-get -y install openssh-server openssh-blacklist openssh-blacklist-extra sudo python aptitude resolvconf"
 
-apt-get autoremove --purge
-apt-get clean
-
-exit
+chroot root /bin/bash -c "apt-get autoremove --purge"
+chroot root /bin/bash -c "apt-get clean"
 
 cp /home/vagrant/rpi.img /vagrant/
 
